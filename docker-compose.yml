@@ -13,4 +13,5 @@ services:
       - ./rsyslog.conf:/etc/rsyslog.conf:ro
       - ./smtpd.conf:/etc/smtpd.conf:ro
       - ./supervisord.conf:/etc/supervisor/supervisord.conf:ro
+      - ./allowed_hosts:/etc/mail_allowed_hosts:ro
 
