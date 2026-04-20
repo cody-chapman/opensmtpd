@@ -14,13 +14,8 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /var/spool/opensmtpd \
     /var/log/supervisor \
     /var/log/rsyslog \
-    /var/log/opensmtpd
-
-# Copy configuration files
-#COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-#COPY smtpd.conf /etc/smtpd.conf
-#COPY rsyslog.conf /etc/rsyslog.conf
-#COPY smtpd-rsyslog.conf /etc/rsyslog.d/10-smtpd.conf
+    /var/log/opensmtpd \
+    /var/lib/rsyslog
 
 # Set proper permissions
 RUN chmod 644 /etc/smtpd.conf \
