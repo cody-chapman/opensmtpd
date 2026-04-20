@@ -24,11 +24,10 @@ RUN mkdir -p /var/spool/opensmtpd \
 
 # Set proper permissions
 RUN chmod 644 /etc/smtpd.conf \
-    && chmod 644 /etc/rsyslog.conf \
-    && chmod 644 /etc/rsyslog.d/10-smtpd.conf
+    && chmod 644 /etc/rsyslog.conf
 
 # Expose SMTP ports
 EXPOSE 25 587 465
 
 # Start supervisor
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]
