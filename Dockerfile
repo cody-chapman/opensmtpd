@@ -1,32 +1,35 @@
-# Debian 13 (Trixie) base
-FROM debian:trixie-slim
+FROM debian:13-slim
 
-ENV TZ=UTC
+# Set non-interactive mode
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install testssl.sh package and cron
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    testssl.sh \
-    cron \
-    ca-certificates \
-    ssmtp \
-    vim \
+# Install required packages
+RUN apt-get update && apt-get install -y \
+    opensmtpd \
+    rsyslog \
     supervisor \
-    tzdata \
-    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
-    && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
-# Create working directory for logs and input files
-WORKDIR /data
+# Create necessary directories
+RUN mkdir -p /var/run/sshd \
+    /var/spool/openmtpd \
+    /var/log/supervisor \
+    /var/log/rsyslog \
+    /var/log/openmtpd
 
-# Copy the runner and entrypoint scripts
-COPY runner.sh /usr/local/bin/runner.sh
-COPY supervisor.conf /data/supervisor.conf
-COPY entrypoint.sh /entrypoint.sh
-# COPY mycron /etc/cron.d/mycron
-RUN chmod +x /usr/local/bin/runner.sh /entrypoint.sh
-# RUN chmod 0644 /etc/cron.d/mycron
-# RUN chown root:root /etc/cron.d/mycron
+# Copy configuration files
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY smtpd.conf /etc/smtpd.conf
+COPY rsyslog.conf /etc/rsyslog.conf
+COPY smtpd-rsyslog.conf /etc/rsyslog.d/10-smtpd.conf
 
-# Start the entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+# Set proper permissions
+RUN chmod 644 /etc/smtpd.conf \
+    && chmod 644 /etc/rsyslog.conf \
+    && chmod 644 /etc/rsyslog.d/10-smtpd.conf
+
+# Expose SMTP ports
+EXPOSE 25 587 465
+
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
