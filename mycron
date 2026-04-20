@@ -1,3 +1,0 @@
-# Hard requirement that an emply line is at the end of this.  I suggest using vi and adding it.  
-SHELL=/bin/bash
-0 0 1 * * root . /etc/container.env; /usr/local/bin/runner.sh >> /var/log/cron.log 2>&1
