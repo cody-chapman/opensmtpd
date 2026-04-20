@@ -26,8 +26,10 @@ RUN mkdir -p /var/spool/opensmtpd \
 RUN chmod 644 /etc/smtpd.conf \
     && chmod 644 /etc/rsyslog.conf
 
+COPY entrypoint.sh /entrypoint.sh
+
 # Expose SMTP ports
 EXPOSE 25 587 465
 
 # Start supervisor
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/supervisord.conf"]
+CMD ["sh", "/entrypoint.sh"]
