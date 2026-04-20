@@ -1,17 +1,16 @@
 services:
-  testssl-crond:
-    image: ghcr.io/west-gate-bank/testssl-crond:latest
-    container_name: testssl
+  opensmtpd:
+    image: opensmtpd
+    container_name: opensmtpd
     restart: always
+    ports:
+      - 25:25
+      - 465:465
+      - 587:587
     environment:
-      # ip address or fqdn of the email server and port to send (no authorization support)
-      - EMAIL_SERVER=10.1.0.11:25
-      # email rewrite domain on who the email is from
-      - EMAIL_DOMAIN=westgate.bank
       - TZ=America/Chicago
     volumes:
-      # I have example files in the repo for email.txt domains.txt emailaddres.txt and mycron
-      - /configs/testssl.sh/email.txt:/data/email.txt:ro
-      - /configs/testssl.sh/domains.txt:/data/domains.txt:ro
-      - /configs/testssl.sh/emailaddress.txt:/data/emailaddress.txt
-      - /configs/testssl.sh/mycron:/etc/cron.d/mycron
+      - ./rsyslog.conf:/etc/rsyslog.conf:ro
+      - ./smtpd.conf:/etc/smtpd.conf:ro
+      - ./supervisord.conf:/etc/supervisor/supervisord.conf:ro
+
