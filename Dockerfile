@@ -6,20 +6,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install required packages
 RUN apt-get update && apt-get install -y \
     opensmtpd \
-    rsyslog \
     supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 # Create necessary directories
 RUN mkdir -p /var/spool/opensmtpd \
-    /var/log/supervisor \
     /var/log/rsyslog \
-    /var/log/opensmtpd \
-    /var/lib/rsyslog
+    /var/log/opensmtpd
 
 # Set proper permissions
-RUN chmod 644 /etc/smtpd.conf \
-    && chmod 644 /etc/rsyslog.conf
+RUN chmod 644 /etc/smtpd.conf
 
 COPY entrypoint.sh /entrypoint.sh
 
