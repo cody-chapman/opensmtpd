@@ -13,5 +13,5 @@ services:
       - ./smtpd.conf:/etc/smtpd.conf:ro
       - ./supervisord.conf:/etc/supervisor/supervisord.conf:ro
       - ./allowed_hosts:/etc/mail_allowed_hosts:ro
-      - ./logs:/var/log/smtpd:ro
+      - ./logs:/var/log/opensmtpd:ro
 
