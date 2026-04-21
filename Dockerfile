@@ -11,7 +11,6 @@ RUN apt-get update && apt-get install -y \
 
 # Create necessary directories
 RUN mkdir -p /var/spool/opensmtpd \
-    /var/log/rsyslog \
     /var/log/opensmtpd
 
 # Set proper permissions
