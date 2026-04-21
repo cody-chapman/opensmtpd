@@ -1,25 +1,25 @@
-# testssl-crond
+# OpenSMTPD Docker Relay
 
-A Docker-based SSL/TLS certificate security auditing tool that runs scheduled security scans on specified domains and sends email reports.
+A Docker-based OpenSMTPD setup that acts as a secure email relay to Microsoft 365, with configurable access control for allowed hosts.
 
 ## Overview
 
-**testssl-crond** is a containerized solution that automates SSL/TLS certificate testing using [testssl.sh](https://github.com/drwetter/testssl.sh). It leverages cron scheduling to run periodic security assessments on your domains and automatically emails the results.
+**OpenSMTPD Docker Relay** is a containerized SMTP relay server using OpenSMTPD that forwards emails to Microsoft 365's SMTP servers. It includes access control to restrict relaying to only specified IP addresses or networks, providing a secure gateway for email transmission.
 
 ## Features
 
-- 🔒 **Automated SSL/TLS Testing** - Run security assessments on multiple domains
-- 📧 **Email Reporting** - Automatic email delivery of test results
+- 📧 **SMTP Relay** - Secure email forwarding to Microsoft 365
+- 🔒 **Access Control** - Restrict relaying to allowed hosts/networks
 - 🐳 **Docker Containerized** - Easy deployment and portability
-- ⏰ **Cron Scheduling** - Flexible scheduling using standard cron expressions
-- 🌍 **Multi-Domain Support** - Test multiple domains in a single run
-- 📋 **Detailed Logging** - Comprehensive scan history and results tracking
+- 📝 **Comprehensive Logging** - Integrated rsyslog and supervisord logging
+- 🔧 **Configurable** - Easy-to-modify configuration files
+- 🌐 **Multi-Port Support** - Standard SMTP (25), SMTPS (465), and Submission (587)
 
 ## Prerequisites
 
 - Docker
-- Docker Compose (optional)
-- SMTP server access for email notifications
+- Docker Compose
+- Access to Microsoft 365 SMTP servers (typically `yourdomain.mail.protection.outlook.com`)
 
 ## Quick Start
 
@@ -27,25 +27,16 @@ A Docker-based SSL/TLS certificate security auditing tool that runs scheduled se
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/West-Gate-Bank/testssl-crond.git
-cd testssl-crond
+git clone <your-repo-url>
+cd opensmtpd
 ```
 
 2. Configure your settings:
-   - Create/modify `domains.txt` with your domains (one per line)
-   - Create/modify `email.txt` with email headers and body template
-   - Create/modify `emailaddress.txt` with recipient email address
-   - Create/modify `mycron` with your cron schedule
+   - Edit `allowed_hosts` to include your allowed IP addresses/networks (one per line)
+   - Update `smtpd.conf` with your Microsoft 365 SMTP endpoint
+   - Modify `docker-compose.yml` environment variables if needed
 
-3. Update `docker-compose.yml` with your environment:
-```yaml
-environment:
-  - EMAIL_SERVER=smtp.example.com:25
-  - EMAIL_DOMAIN=yourdomain.com
-  - TZ=America/Chicago
-```
-
-4. Build and run:
+3. Build and run:
 ```bash
 docker-compose up -d
 ```
@@ -53,19 +44,20 @@ docker-compose up -d
 ### Using Docker CLI
 
 ```bash
-docker build -t testssl-crond .
+docker build -t opensmtpd-relay .
 
 docker run -d \
-  --name testssl \
+  --name opensmtpd-relay \
   --restart always \
-  -e EMAIL_SERVER=smtp.example.com:25 \
-  -e EMAIL_DOMAIN=yourdomain.com \
+  -p 25:25 \
+  -p 465:465 \
+  -p 587:587 \
   -e TZ=America/Chicago \
-  -v /path/to/domains.txt:/data/domains.txt:ro \
-  -v /path/to/email.txt:/data/email.txt:ro \
-  -v /path/to/emailaddress.txt:/data/emailaddress.txt \
-  -v /path/to/mycron:/etc/cron.d/mycron \
-  testssl-crond
+  -v $(pwd)/rsyslog.conf:/etc/rsyslog.conf:ro \
+  -v $(pwd)/smtpd.conf:/etc/smtpd.conf:ro \
+  -v $(pwd)/supervisord.conf:/etc/supervisor/supervisord.conf:ro \
+  -v $(pwd)/allowed_hosts:/etc/mail_allowed_hosts:ro \
+  opensmtpd-relay
 ```
 
 ## Configuration
@@ -74,30 +66,85 @@ docker run -d \
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `EMAIL_SERVER` | SMTP server address and port (format: `host:port`) | Required |
-| `EMAIL_DOMAIN` | Email rewrite domain (sender domain) | Required |
-| `TZ` | Timezone for cron scheduling | UTC |
+| `TZ` | Timezone for logging | America/Chicago |
 
 ### Configuration Files
 
-#### `domains.txt`
-List of domains to scan, one per line:
+#### `allowed_hosts`
+List of allowed IP addresses or networks that can relay emails, one per line:
 ```
-example.com
-api.example.com
-www.example.com
-```
-
-#### `emailaddress.txt`
-Email address(es) to send reports to:
-```
-admin@example.com
+192.168.1.0/24
+10.0.0.1
+203.0.113.5
 ```
 
-#### `email.txt`
-Email header and body template:
+#### `smtpd.conf`
+OpenSMTPD configuration file. Key settings:
+- `listen on 0.0.0.0/0` - Listen on all interfaces
+- `table allowed_hosts file:/etc/mail_allowed_hosts` - Load allowed hosts table
+- `action "relay_out" relay host smtp://yourdomain.mail.protection.outlook.com` - Relay to Microsoft 365
+
+#### `rsyslog.conf`
+Logging configuration for rsyslog.
+
+#### `supervisord.conf`
+Supervisor configuration to manage OpenSMTPD and rsyslog processes.
+
+## Usage
+
+Once running, the container will:
+
+1. Accept SMTP connections on ports 25, 465, and 587
+2. Check if the connecting IP is in the `allowed_hosts` list
+3. If allowed, relay the email to Microsoft 365
+4. If not allowed, reject the connection
+5. Log all activity via rsyslog
+
+### Testing
+
+You can test the relay by sending an email from an allowed host:
+
+```bash
+telnet your-server-ip 25
+HELO example.com
+MAIL FROM: <sender@example.com>
+RCPT TO: <recipient@example.com>
+DATA
+Subject: Test Email
+
+This is a test message.
+.
+QUIT
 ```
-Subject: SSL/TLS Security Audit Report
+
+## Security Considerations
+
+- Only allow trusted networks in `allowed_hosts`
+- Use TLS encryption for email transmission
+- Regularly update the Docker image
+- Monitor logs for unauthorized access attempts
+- Consider firewall rules to restrict access to SMTP ports
+
+## Troubleshooting
+
+### Check container logs
+```bash
+docker-compose logs opensmtpd
+```
+
+### Check OpenSMTPD status
+```bash
+docker exec opensmtpd supervisorctl status
+```
+
+### Verify configuration
+```bash
+docker exec opensmtpd smtpd -n
+```
+
+## License
+
+See LICENSE file for details.
 To: recipient@example.com
 
 ---
