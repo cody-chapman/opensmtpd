@@ -1,6 +1,6 @@
 services:
   opensmtpd:
-    image: opensmtpd
+    image: ghcr.io/cody-chapman/opensmtpd:latest
     container_name: opensmtpd
     restart: always
     ports:
