@@ -1,0 +1,42 @@
+FROM alpine:3.23
+
+# 1. Install dependencies for OpenSMTPD and PowerShell
+RUN apk add --no-cache \
+    opensmtpd \
+    supervisor \
+    newt \
+    icu-libs \
+    libstdc++ \
+    libintl \
+    libssl3 \
+    curl
+
+# 2. Install PowerShell
+# We download the latest stable musl-specific tarball
+RUN mkdir -p /opt/microsoft/powershell/7 \
+    && curl -L https://github.com/PowerShell/PowerShell/releases/download/v7.4.2/powershell-7.4.2-linux-musl-x64.tar.gz \
+    -o /tmp/powershell.tar.gz \
+    && tar zxf /tmp/powershell.tar.gz -C /opt/microsoft/powershell/7 \
+    && chmod +x /opt/microsoft/powershell/7/pwsh \
+    && ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh \
+    && rm /tmp/powershell.tar.gz
+
+# 3. Create necessary directories
+RUN mkdir -p /var/spool/opensmtpd /var/log/opensmtpd
+
+# 4. Handle configuration and scripts
+# Note: Ensure smtpd.conf is in your local folder before building
+COPY smtpd.conf /etc/smtpd.conf
+RUN chmod 644 /etc/smtpd.conf
+
+COPY smtpd-manage /usr/bin/smtpd-manage
+RUN chmod +x /usr/bin/smtpd-manage
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Expose SMTP ports
+EXPOSE 25 587 465
+
+# Start supervisor
+CMD ["/bin/sh", "/entrypoint.sh"]
