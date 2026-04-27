@@ -25,7 +25,6 @@ WORKDIR /app
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 RUN chmod 644 /etc/smtpd.conf
-RUN chmod +x /usr/bin/smtpd-manage
 
 # Expose SMTP ports
 EXPOSE 25 587 465 8080 8085
