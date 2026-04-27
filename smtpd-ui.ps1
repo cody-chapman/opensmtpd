@@ -17,7 +17,7 @@ Start-PodeServer {
             $stats = "No stats available."
 
             try {
-                $rawStats = & smtpctl show stats 2>$null
+                $rawStats = & /usr/sbin/smtpctl show stats 2>$null
                 if ($lastExitCode -eq 0) {
                     $state = "RUNNING"
                     $color = "#00ff88"
@@ -28,7 +28,7 @@ Start-PodeServer {
                 }
             } catch {
                 $state = "NOT FOUND"
-                $stats = "Error: 'smtpctl' command not found or permission denied."
+                $stats = "Error: '/usr/sbin/smtpctl' command not found or permission denied."
             }
 
             # 3. Build the Dark Theme HTML
@@ -100,7 +100,7 @@ Start-PodeServer {
             if (-not $cmd) { throw "No command provided." }
 
             # Execute command and capture string output
-            $result = & smtpctl $cmd 2>&1 | Out-String
+            $result = & /usr/sbin/smtpctl $cmd 2>&1 | Out-String
             
             if ([string]::IsNullOrWhiteSpace($result)) {
                 $result = "Success: Command '$cmd' executed (no output returned)."
