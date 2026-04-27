@@ -2,7 +2,7 @@ Import-Module Pode
 
 Start-PodeServer {
     # 1. Setup Endpoint
-    Add-PodeEndpoint -Address * -Port 8080 -Protocol Http
+    Add-PodeEndpoint -Address * -Port 8085 -Protocol Http
 
     # 2. Status Helper
     function Get-SmtpStatus {
