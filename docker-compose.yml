@@ -7,6 +7,7 @@ services:
       - 25:25
       - 465:465
       - 587:587
+      - 8080:8080
     environment:
       - TZ=America/Chicago
     volumes:
@@ -14,4 +15,6 @@ services:
       - ./supervisord.conf:/etc/supervisor/supervisord.conf:ro
       - ./allowed_hosts:/etc/mail_allowed_hosts:ro
       - ./logs:/var/log/opensmtpd
+      - ./smtpd-manage:/app/amtpd-manage
+      - ./tailog.ps1:/app/tailog.ps1
 
