@@ -4,7 +4,7 @@
 $Port = 8080
 $Hostname = hostname
 $Logs = @{
-    "SMTP"   = "/var/log/opensmptd/opensmtpd.log"
+    "SMTP"   = "/var/log/opensmtpd/opensmtpd.log"
     "PWSH"   = "/var/log/opensmtpd/pwsh.log"
     "SUPERVISOR"    = "/var/log/supervisor/supervisord.log"
 }
