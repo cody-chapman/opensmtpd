@@ -2,7 +2,7 @@ Import-Module Pode
 
 Start-PodeServer {
     # 1. Port Check: Ensure this port is definitely open
-    Add-PodeEndpoint -Address * -Port 8080 -Protocol Http
+    Add-PodeEndpoint -Address * -Port 8888 -Protocol Http
 
     # 2. Define the path clearly at the top
     $SmtpPath = "/usr/sbin/smtpctl" 
