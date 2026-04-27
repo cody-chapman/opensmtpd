@@ -2,233 +2,174 @@
 
 # --- Configuration ---
 $Port = 8080
-$LogPath = "/var/log/opensmptd/opensmtpd.log" # Common location; adjust if your syslog differs
 $Hostname = hostname
+$Logs = @{
+    "SMTP"   = "/var/log/opensmptd/opensmtpd.log"
+    "PWSH"   = "/var/log/opensmtpd/pwsh.log"
+    "SUPERVISOR"    = "/var/log/supervisor/supervisord.log"
+}
 
 # --- Initialization ---
 $Listener = New-Object System.Net.HttpListener
 $Listener.Prefixes.Add("http://*:$Port/")
-
-try {
-    $Listener.Start()
-} catch {
-    Write-Error "Failed to start listener. Are you root? Is port $Port busy?"
-    Exit
+try { $Listener.Start() } catch { 
+    Write-Error "Start failed. Run as sudo? Port $Port free?"; exit 
 }
 
-Write-Host "Started Maillog Streamer" -ForegroundColor Cyan
-Write-Host "Listening on: http://<your_ip>:$Port/" -ForegroundColor Yellow
-Write-Host "Streaming: $LogPath" -ForegroundColor Green
-Write-Host "Press Ctrl+C to stop."
+Write-Host "Dashboard active at http://localhost:$Port" -ForegroundColor Cyan
 
-# --- Helper to handle network write errors safely ---
-function Send-SSEEvent {
-    param($Writer, $Data)
-    try {
-        # SSE Format: "data: <content>\n\n"
-        $Writer.WriteLine("data: $Data")
-        $Writer.WriteLine() 
-        $Writer.Flush()
-        return $true
-    } catch {
-        # Connection likely lost
-        return $false
-    }
-}
-
-# --- Main Loop ---
 try {
     while ($Listener.IsListening) {
         $Context = $Listener.GetContext()
         $Request = $Context.Request
         $Response = $Context.Response
 
-        # --- Route 1: The UI (HTML/JS) ---
         if ($Request.Url.LocalPath -eq "/") {
             $Response.ContentType = "text/html"
             
+            # Create Filter Buttons dynamically based on our Hashtable
+            $Buttons = ""
+            foreach($key in $Logs.Keys) {
+                $Buttons += "<button class='filter-btn active' data-source='$key'>$key</button>"
+            }
+
             $Html = @"
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <title>$Hostname :: Live Maillog</title>
+    <title>$Hostname Logs</title>
     <style>
         :root {
-            --bg-color: #0d1117;
-            --text-color: #c9d1d9;
-            --terminal-green: #26fb13;
-            --border-color: #30363d;
-            --timestamp-color: #8b949e;
+            --bg: #0d1117; --panel: #161b22; --border: #30363d;
+            --text: #c9d1d9; --dim: #8b949e; --green: #238636;
         }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        header {
-            background-color: #161b22;
-            padding: 10px 20px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        h1 { margin: 0; font-size: 1.2rem; color: var(--terminal-green); }
-        .status { font-size: 0.9rem; color: var(--timestamp-color); }
-        .blink { animation: blinker 1s linear infinite; }
-        @keyframes blinker { 50% { opacity: 0; } }
-
-        #log-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 20px;
-            scroll-behavior: smooth;
-        }
-
-        #log-output {
-            white-space: pre-wrap;
-            margin: 0;
-            word-wrap: break-word;
-        }
-
-        /* Basic Maillog Highlighting */
-        .line { display: block; margin-bottom: 2px; line-height: 1.4; }
-        .line:hover { background-color: #1c2128; }
+        body { background: var(--bg); color: var(--text); font-family: monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; }
         
-        /* Highlight timestamps (assuming standard syslog format) */
-        .ts { color: var(--timestamp-color); }
-        
-        /* Highlight common SMTP status words */
-        .stat-ok { color: var(--terminal-green); font-weight: bold;}
-        .stat-err { color: #ff7b72; font-weight: bold;}
-        .stat-warn { color: #d29922; font-weight: bold;}
+        header { 
+            background: var(--panel); padding: 15px 20px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 20px;
+        }
 
+        /* Filter UI */
+        .filters { display: flex; gap: 10px; }
+        .filter-btn { 
+            background: #21262d; border: 1px solid var(--border); color: var(--text);
+            padding: 5px 15px; border-radius: 6px; cursor: pointer; transition: 0.2s;
+        }
+        .filter-btn.active { background: var(--green); border-color: #3fb950; }
+        .filter-btn:not(.active) { opacity: 0.5; }
+
+        #log-container { flex: 1; overflow-y: auto; padding: 15px; }
+        .line { margin-bottom: 4px; display: block; border-left: 3px solid transparent; padding-left: 10px; }
+        .line.hidden { display: none; }
+        
+        /* Source Badges */
+        .badge { font-weight: bold; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; margin-right: 10px; display: inline-block; width: 60px; text-align: center; }
+        .tag-SMTP { background: #1f6feb; color: white; }
+        .tag-AUTH { background: #da3633; color: white; }
+        .tag-SYS { background: #8957e5; color: white; }
+        .tag-KERNEL { background: #d29922; color: white; }
+
+        .ts { color: var(--dim); margin-right: 10px; }
     </style>
 </head>
 <body>
     <header>
-        <h1>SYSTEM MAILLOG :: $Hostname</h1>
-        <div class="status">Source: $LogPath | <span class="blink">●</span> LIVE</div>
+        <div style="font-weight:bold; color:var(--green)">$Hostname :: LOGS</div>
+        <div class="filters">
+            $Buttons
+            <button onclick="clearLogs()" style="margin-left:20px" class="filter-btn">Clear</button>
+        </div>
     </header>
-    <div id="log-container">
-        <pre id="log-output">Connecting to stream...</pre>
-    </div>
+    <div id="log-container"><div id="output"></div></div>
 
     <script>
-        const logOutput = document.getElementById('log-output');
-        const logContainer = document.getElementById('log-container');
-        const eventSource = new EventSource('/stream');
+        const output = document.getElementById('output');
+        const container = document.getElementById('log-container');
+        const activeFilters = new Set(JSON.parse('$($Logs.Keys | ConvertTo-Json -Compress)'));
 
-        // Function to process and highlight lines
-        function formatLine(rawText) {
-            if (!rawText || rawText.trim() === "") return "";
-            
-            let escaped = rawText
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;");
+        // Toggle Filters
+        document.querySelectorAll('.filter-btn[data-source]').forEach(btn => {
+            btn.onclick = () => {
+                const src = btn.dataset.source;
+                if (activeFilters.has(src)) {
+                    activeFilters.delete(src);
+                    btn.classList.remove('active');
+                } else {
+                    activeFilters.add(src);
+                    btn.classList.add('active');
+                }
+                updateVisibility();
+            };
+        });
 
-            // Highlight timestamp (Jan 01 12:00:00)
-            escaped = escaped.replace(/^([A-Z][a-z]{2}\s+\d+\s\d{2}:\d{2}:\d{2})/, '<span class="ts">$1</span>');
-
-            // Semantic highlighting
-            escaped = escaped.replace(/\b(ok|status=sent|accepted)\b/gi, '<span class="stat-ok">$1</span>');
-            escaped = escaped.replace(/\b(error|failed|rejected|fatal|status=bounced)\b/gi, '<span class="stat-err">$1</span>');
-            escaped = escaped.replace(/\b(warning|deferred)\b/gi, '<span class="stat-warn">$1</span>');
-
-            return '<span class="line">' + escaped + '</span>';
+        function updateVisibility() {
+            document.querySelectorAll('.line').forEach(line => {
+                if (activeFilters.has(line.dataset.source)) {
+                    line.classList.remove('hidden');
+                } else {
+                    line.classList.add('hidden');
+                }
+            });
         }
 
-        eventSource.onopen = function() {
-            logOutput.innerHTML = '<span class="status">--- Connection Established ---</span>\n';
-        };
+        function clearLogs() { output.innerHTML = ''; }
 
-        eventSource.onmessage = function(event) {
-            const formatted = formatLine(event.data);
-            if (formatted) {
-                logOutput.innerHTML += formatted;
-                
-                // Auto-scroll to bottom
-                logContainer.scrollTop = logContainer.scrollHeight;
-            }
-        };
+        const es = new EventSource('/stream');
+        es.onmessage = (e) => {
+            // Data format: SOURCE|TIMESTAMP|MESSAGE
+            const parts = e.data.split('|');
+            if (parts.length < 3) return;
 
-        eventSource.onerror = function(err) {
-            console.error("EventSource failed:", err);
-            logOutput.innerHTML += '<span class="stat-err">--- Connection Lost. Reconnecting... ---</span>\n';
+            const [src, ts, msg] = parts;
+            const div = document.createElement('div');
+            div.className = 'line';
+            div.dataset.source = src;
+            if (!activeFilters.has(src)) div.classList.add('hidden');
+
+            div.innerHTML = `<span class="ts">` + ts + `</span>` +
+                           `<span class="badge tag-` + src + `">` + src + `</span>` +
+                           `<span>` + msg + `</span>`;
+            
+            output.appendChild(div);
+            container.scrollTop = container.scrollHeight;
         };
     </script>
 </body>
 </html>
 "@
             $Buffer = [System.Text.Encoding]::UTF8.GetBytes($Html)
-            $Response.ContentLength64 = $Buffer.Length
             $Response.OutputStream.Write($Buffer, 0, $Buffer.Length)
             $Response.Close()
         }
 
-        # --- Route 2: The Stream (Server-Sent Events) ---
         elseif ($Request.Url.LocalPath -eq "/stream") {
-            
-            # Critical headers for SSE
             $Response.ContentType = "text/event-stream"
             $Response.Headers.Add("Cache-Control", "no-cache")
-            $Response.Headers.Add("Connection", "keep-alive")
-            
-            # Force the response headers out immediately
-            $Response.OutputStream.Flush()
-            
             $Writer = New-Object System.IO.StreamWriter($Response.OutputStream)
-            
-            Write-Host "New stream client connected." -ForegroundColor Gray
 
-            # Use tail -f natively on POSIX
-            $TailProcessInfo = New-Object System.Diagnostics.ProcessStartInfo
-            $TailProcessInfo.FileName = "tail"
-            $TailProcessInfo.Arguments = "-n 20 -f $LogPath" # Start with last 20 lines
-            $TailProcessInfo.RedirectStandardOutput = $true
-            $TailProcessInfo.UseShellExecute = $false
-            
-            $TailProcess = [System.Diagnostics.Process]::Start($TailProcessInfo)
-            
-            # Send initial greeting
-            if (-not (Send-SSEEvent -Writer $Writer -Data "--- Tailing $LogPath ---")) {
-                 $TailProcess.Kill(); $Response.Close(); continue
-            }
-
-            # Stream the output of tail -f to the web response
-            while (-not $TailProcess.StandardOutput.EndOfStream) {
-                $Line = $TailProcess.StandardOutput.ReadLine()
+            # Watch all files in $Logs.Values
+            Get-Content -Path $Logs.Values -Tail 5 -Wait | ForEach-Object {
+                $rawLine = $_
+                $path = $rawLine.PSPath
                 
-                # If network send fails, client disconnected
-                if (-not (Send-SSEEvent -Writer $Writer -Data $Line)) {
-                    Write-Host "Stream client disconnected." -ForegroundColor Gray
-                    break
+                # Determine which friendly key this path matches
+                $foundSrc = "LOG"
+                foreach($pair in $Logs.GetEnumerator()) {
+                    if ($path -like "*$($pair.Value)*") { $foundSrc = $pair.Key; break }
                 }
-            }
 
-            # Clean up when stream ends (client disconnect)
-            $TailProcess.Kill()
-            $Response.Close()
-        }
-        else {
-            $Response.StatusCode = 404
+                # Extract a timestamp if possible, else use current time
+                $ts = [DateTime]::Now.ToString("HH:mm:ss")
+                
+                try {
+                    # Send structured data: SOURCE|TIME|MESSAGE
+                    $Writer.WriteLine("data: $($foundSrc)|$($ts)|$($rawLine)")
+                    $Writer.WriteLine()
+                    $Writer.Flush()
+                } catch { break }
+            }
             $Response.Close()
         }
     }
-}
-finally {
-    # Ensure listener stops on Ctrl+C
-    if ($Listener.IsListening) {
-        $Listener.Stop()
-    }
-    Write-Host "Server stopped." -ForegroundColor Red
-}
+} finally { $Listener.Stop() }
