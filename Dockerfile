@@ -14,6 +14,8 @@ RUN curl https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /et
     && apt-get update && apt-get install -y powershell \
     && rm -rf /var/lib/apt/lists/*
 
+RUN /usr/bin/pwsh -c "Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted; Install-Module -Name 'Pode' -Scope AllUsers -Force"
+
 # Create necessary directories
 RUN mkdir -p /var/spool/opensmtpd \
     /var/log/opensmtpd
@@ -27,7 +29,7 @@ RUN chmod +x /usr/bin/smtpd-manage
 COPY entrypoint.sh /entrypoint.sh
 
 # Expose SMTP ports
-EXPOSE 25 587 465
+EXPOSE 25 587 465 8080 8085
 
 # Start the entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
