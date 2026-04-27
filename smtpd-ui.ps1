@@ -1,85 +1,64 @@
 Import-Module Pode
 
 Start-PodeServer {
-    # Bind to port 8080 (Change to 8888 if 8080 is busy)
-    Add-PodeEndpoint -Address * -Port 8888 -Protocol Http
+    # 1. Port Check: Ensure this port is definitely open
+    Add-PodeEndpoint -Address * -Port 8080 -Protocol Http
 
-    # ── Dashboard Route ──────────────────────────────────────────────────────
+    # 2. Define the path clearly at the top
+    $SmtpPath = "/usr/sbin/smtpctl" 
+
+    # ── Dashboard ──────────────────────────────────────────────────────────
     Add-PodeRoute -Method Get -Path "/" -ScriptBlock {
         try {
-            # 1. Capture Output from Redirects
-            $queryOut = $WebEvent.Query['out']
-            $displayOut = if ($queryOut) { [uri]::UnescapeDataString($queryOut) } else { "System Ready. Waiting for input..." }
-
-            # 2. Get Daemon Status Safely
-            $state = "UNKNOWN"
-            $color = "#8b949e"
-            $stats = "No stats available."
-
-            try {
-                $rawStats = & /usr/sbin/smtpctl show stats 2>$null
-                if ($lastExitCode -eq 0) {
-                    $state = "RUNNING"
-                    $color = "#00ff88"
-                    $stats = $rawStats -join "`n"
-                } else {
-                    $state = "STOPPED"
-                    $color = "#f85149"
-                }
-            } catch {
-                $state = "NOT FOUND"
-                $stats = "Error: '/usr/sbin/smtpctl' command not found or permission denied."
+            # Safely check query params
+            $out = ""
+            if ($WebEvent.Query.ContainsKey('out')) {
+                $out = [uri]::UnescapeDataString($WebEvent.Query['out'])
             }
 
-            # 3. Build the Dark Theme HTML
+            # Safely check stats
+            $stats = "Loading..."
+            try {
+                if (Test-Path $SmtpPath) {
+                    $stats = & $SmtpPath show stats 2>&1 | Out-String
+                } else {
+                    $stats = "Error: Path not found at $SmtpPath"
+                }
+            } catch {
+                $stats = "Exception fetching stats: $($_.Exception.Message)"
+            }
+
+            # Build HTML with zero nested complex objects
             $html = @"
 <!DOCTYPE html>
 <html>
 <head>
     <title>OpenSMTPD Manager</title>
     <style>
-        body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, system-ui, sans-serif; padding: 40px; margin: 0; }
-        .container { max-width: 900px; margin: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #30363d; padding-bottom: 15px; }
-        .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 20px; margin-top: 20px; }
-        .status { color: $color; font-weight: bold; text-transform: uppercase; }
-        .btn-group { display: flex; gap: 10px; margin-top: 10px; }
-        .btn { background: #21262d; color: #58a6ff; border: 1px solid #30363d; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn:hover { background: #30363d; }
-        .btn-start { background: #238636; color: white; border: none; }
-        .btn-stop { background: #f85149; color: white; border: none; }
-        pre { background: #000; padding: 15px; border-radius: 6px; border: 1px solid #30363d; color: #8b949e; overflow-x: auto; white-space: pre-wrap; font-family: monospace; }
-        .console { color: #58a6ff; border-color: #58a6ff33; }
+        body { background: #0d1117; color: #c9d1d9; font-family: sans-serif; padding: 20px; }
+        .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+        pre { background: #000; padding: 10px; border-radius: 4px; border: 1px solid #444; color: #8b949e; white-space: pre-wrap; }
+        button { background: #21262d; color: #58a6ff; border: 1px solid #30363d; padding: 8px 15px; cursor: pointer; border-radius: 4px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1 style="margin:0;">OpenSMTPD Manager</h1>
-                <small style="color:#8b949e;">Server: $($env:COMPUTERNAME) | $(Get-Date -Format "HH:mm:ss")</small>
-            </div>
-            <div class="status">$state</div>
-        </div>
-
+    <div style="max-width:800px; margin:auto;">
+        <h1>OpenSMTPD Manager</h1>
         <div class="card">
-            <h3 style="margin-top:0;">Service Controls</h3>
-            <div class="btn-group">
-                <form action="/action" method="post"><button class="btn btn-start" name="cmd" value="start">Start</button></form>
-                <form action="/action" method="post"><button class="btn btn-stop" name="cmd" value="stop">Stop</button></form>
-                <form action="/action" method="post"><button class="btn" name="cmd" value="reload">Reload</button></form>
-                <form action="/action" method="post"><button class="btn" name="cmd" value="schedule all">Flush Queue</button></form>
-            </div>
+            <h3>Actions</h3>
+            <form action="/action" method="post">
+                <button name="cmd" value="start">Start</button>
+                <button name="cmd" value="stop">Stop</button>
+                <button name="cmd" value="reload">Reload</button>
+            </form>
         </div>
-
         <div class="card">
-            <h3 style="margin-top:0;">Runtime Statistics</h3>
-            <pre>$stats</pre>
+            <h3>System Stats</h3>
+            <pre>$($stats)</pre>
         </div>
-
         <div class="card">
-            <h3 style="margin-top:0;">Console Output</h3>
-            <pre class="console">$displayOut</pre>
+            <h3>Last Command Result</h3>
+            <pre style="color:#58a6ff;">$($out)</pre>
         </div>
     </div>
 </body>
@@ -88,29 +67,26 @@ Start-PodeServer {
             Write-PodeWebResponse -Value $html -ContentType 'text/html'
 
         } catch {
-            # If the Route itself fails, output the error as a string instead of a 500 page
-            Write-PodeWebResponse -Value "Critical Route Error: $($_.Exception.Message)" -StatusCode 500
+            # This turns the 500 Error into a visible error message
+            $errorMessage = "ROUTE CRASHED: $($_.Exception.Message) `n`n StackTrace: $($_.ScriptStackTrace)"
+            Write-PodeWebResponse -Value "<pre>$errorMessage</pre>" -StatusCode 500
         }
     }
 
     # ── Action Handler ───────────────────────────────────────────────────────
     Add-PodeRoute -Method Post -Path "/action" -ScriptBlock {
         try {
-            $cmd = $WebEvent.Data['cmd']
-            if (-not $cmd) { throw "No command provided." }
-
-            # Execute command and capture string output
-            $result = & /usr/sbin/smtpctl $cmd 2>&1 | Out-String
-            
-            if ([string]::IsNullOrWhiteSpace($result)) {
-                $result = "Success: Command '$cmd' executed (no output returned)."
+            $action = $WebEvent.Data['cmd']
+            if (-not $action) { 
+                Move-PodeResponse -Url "/?out=No+command"
+                return 
             }
 
-            $escaped = [uri]::EscapeDataString($result.Trim())
+            $res = & $SmtpPath $action 2>&1 | Out-String
+            $escaped = [uri]::EscapeDataString($res.Trim())
             Move-PodeResponse -Url "/?out=$escaped"
-
         } catch {
-            $err = [uri]::EscapeDataString("Action Error: $($_.Exception.Message)")
+            $err = [uri]::EscapeDataString("Action Crash: $($_.Exception.Message)")
             Move-PodeResponse -Url "/?out=$err"
         }
     }
