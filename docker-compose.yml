@@ -15,6 +15,6 @@ services:
       - ./supervisord.conf:/etc/supervisor/supervisord.conf:ro
       - ./allowed_hosts:/etc/mail_allowed_hosts:ro
       - ./logs:/var/log/opensmtpd
-      - ./smtpd-manage:/app/amtpd-manage
+      - ./smtpd-manage:/app/smtpd-manage
       - ./tailog.ps1:/app/tailog.ps1
 
