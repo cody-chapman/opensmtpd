@@ -6,7 +6,7 @@ echo $TZ > /etc/timezone
 
 # creating logging files before user
 touch /var/log/opensmtpd/opensmtpd.log
-touch /var/log/opensmtpd/opensmtpd.err.log
+chmod +x /app/smtpd-manage
 
 # Start cron in the background and tail logs to keep container alive
 printenv > /etc/environment # Ensure cron sees env variables
