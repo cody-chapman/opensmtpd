@@ -8,6 +8,7 @@ services:
       - 465:465
       - 587:587
       - 8080:8080
+      - 8085:8085
     environment:
       - TZ=America/Chicago
     volumes:
