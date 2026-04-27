@@ -143,33 +143,58 @@ try {
             $Response.Close()
         }
 
-        elseif ($Request.Url.LocalPath -eq "/stream") {
-            $Response.ContentType = "text/event-stream"
-            $Response.Headers.Add("Cache-Control", "no-cache")
-            $Writer = New-Object System.IO.StreamWriter($Response.OutputStream)
+elseif ($Request.Url.LocalPath -eq "/stream") {
+    $Response.ContentType = "text/event-stream"
+    $Response.Headers.Add("Cache-Control", "no-cache")
+    $Response.Headers.Add("Connection", "keep-alive")
+    
+    $Writer = New-Object System.IO.StreamWriter($Response.OutputStream)
 
-            # Watch all files in $Logs.Values
-            Get-Content -Path $Logs.Values -Tail 5 -Wait | ForEach-Object {
-                $rawLine = $_
-                $path = $rawLine.PSPath
-                
-                # Determine which friendly key this path matches
-                $foundSrc = "LOG"
-                foreach($pair in $Logs.GetEnumerator()) {
-                    if ($path -like "*$($pair.Value)*") { $foundSrc = $pair.Key; break }
-                }
-
-                # Extract a timestamp if possible, else use current time
-                $ts = [DateTime]::Now.ToString("HH:mm:ss")
-                
-                try {
-                    # Send structured data: SOURCE|TIME|MESSAGE
-                    $Writer.WriteLine("data: $($foundSrc)|$($ts)|$($rawLine)")
-                    $Writer.WriteLine()
-                    $Writer.Flush()
-                } catch { break }
-            }
-            $Response.Close()
+    # 1. Verify files exist before trying to tail them
+    $ExistingLogs = @{}
+    foreach($key in $Logs.Keys) {
+        if (Test-Path $Logs[$key]) {
+            $ExistingLogs[$key] = $Logs[$key]
+            Write-Host "[DEBUG] Watching $key -> $($Logs[$key])" -ForegroundColor Green
+        } else {
+            Write-Host "[DEBUG] Skipping $key: File not found at $($Logs[$key])" -ForegroundColor Yellow
         }
     }
-} finally { $Listener.Stop() }
+
+    if ($ExistingLogs.Count -eq 0) {
+        $Writer.WriteLine("data: SYS|$(Get-Date)|ERROR: No log files found or accessible.")
+        $Writer.Flush(); $Response.Close(); continue
+    }
+
+    # 2. Start the stream
+    try {
+        # Using -Tail 1 ensures you see SOMETHING immediately on connect
+        Get-Content -Path $ExistingLogs.Values -Tail 1 -Wait -ErrorAction SilentlyContinue | ForEach-Object {
+            $rawLine = $_
+            
+            # Find which log this line belongs to
+            # We use the filename in the path as the primary check
+            $foundSrc = "LOG"
+            foreach($key in $ExistingLogs.Keys) {
+                $fileName = Split-Path $ExistingLogs[$key] -Leaf
+                if ($_.PSPath -like "*$fileName*") { $foundSrc = $key; break }
+            }
+
+            $ts = [DateTime]::Now.ToString("HH:mm:ss")
+            $dataString = "$foundSrc|$ts|$rawLine"
+
+            try {
+                $Writer.WriteLine("data: $dataString")
+                $Writer.WriteLine()
+                $Writer.Flush()
+                # Debug output to your terminal so you can see it's working
+                Write-Host "[SEND] $dataString" -ForegroundColor Gray
+            } catch { 
+                Write-Host "[DEBUG] Client disconnected." -ForegroundColor Red
+                break 
+            }
+        }
+    } finally {
+        $Response.Close()
+    }
+}
