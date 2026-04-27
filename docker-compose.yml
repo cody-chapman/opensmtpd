@@ -17,4 +17,5 @@ services:
       - ./logs:/var/log/opensmtpd
       - ./smtpd-manage:/app/smtpd-manage
       - ./tailog.ps1:/app/tailog.ps1
+      - ./smtpd-ui.ps1:/app/smtpd-ui.ps1
 
