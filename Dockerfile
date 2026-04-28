@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
-    curl ca-certificates gnupg vim supervisor whiptail opensmtpd \
+    curl ca-certificates gnupg vim supervisor whiptail opensmtpd golang \
     && rm -rf /var/lib/apt/lists/*
     
 # Add Microsoft repository and install PowerShell
