@@ -1,10 +1,10 @@
-# OpenSMTPD Docker Relay
+# OpenSMTPD
 
-A Docker-based OpenSMTPD setup that acts as a secure email relay to Microsoft 365, with configurable access control for allowed hosts.
+A modern Go-based implementation of an OpenSMTPD Docker relay that acts as a secure email relay to Microsoft 365, with configurable access control for allowed hosts.
 
 ## Overview
 
-**OpenSMTPD Docker Relay** is a containerized SMTP relay server using OpenSMTPD that forwards emails to Microsoft 365's SMTP servers. It includes access control to restrict relaying to only specified hosts/networks.
+**OpenSMTPD** is a containerized SMTP relay server using OpenSMTPD that forwards emails to Microsoft 365's SMTP servers. It includes access control to restrict relaying to only specified IP addresses or networks, comprehensive logging, and a web-based UI for management.
 
 ## Features
 
@@ -12,22 +12,24 @@ A Docker-based OpenSMTPD setup that acts as a secure email relay to Microsoft 36
 - 🔒 **Access Control** - Restrict relaying to allowed hosts/networks
 - 🐳 **Docker Containerized** - Easy deployment and portability
 - 📝 **Comprehensive Logging** - Integrated rsyslog and supervisord logging
+- 🌐 **Web UI** - Go-based management interface with `smtpd-ui`
 - 🔧 **Configurable** - Easy-to-modify configuration files
 - 🌐 **Multi-Port Support** - Standard SMTP (25), SMTPS (465), and Submission (587)
 
-## Language Composition
+## Technology Stack
 
-This repository is composed of the following languages:
+- **Go** - 97.9% (Primary language for UI and utilities)
+- **Docker** - 1.3% (Container configuration)
+- **Shell** - 0.8% (Setup and helper scripts)
 
-- **Shell** - 66.3%
-- **PowerShell** - 30.5%
-- **Dockerfile** - 3.2%
+**Language:** Go 1.23
 
 ## Prerequisites
 
 - Docker
 - Docker Compose
 - Access to Microsoft 365 SMTP servers (typically `yourdomain.mail.protection.outlook.com`)
+- Go 1.23+ (for local development)
 
 ## Quick Start
 
@@ -35,7 +37,7 @@ This repository is composed of the following languages:
 
 1. Clone this repository:
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/cody-chapman/opensmtpd.git
 cd opensmtpd
 ```
 
@@ -68,6 +70,14 @@ docker run -d \
   opensmtpd-relay
 ```
 
+### Local Development
+
+```bash
+cd smtpd-ui
+go build -o smtpd-ui
+./smtpd-ui
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -75,6 +85,7 @@ docker run -d \
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `TZ` | Timezone for logging | America/Chicago |
+| `SMTPD_ADMIN_PORT` | Web UI port | 8080 |
 
 ### Configuration Files
 
@@ -107,6 +118,7 @@ Once running, the container will:
 3. If allowed, relay the email to Microsoft 365
 4. If not allowed, reject the connection
 5. Log all activity via rsyslog
+6. Provide a web UI for management (accessible on port 8080 by default)
 
 ### Testing
 
@@ -129,9 +141,10 @@ QUIT
 
 - Only allow trusted networks in `allowed_hosts`
 - Use TLS encryption for email transmission
-- Regularly update the Docker image
+- Regularly update the Docker image and dependencies
 - Monitor logs for unauthorized access attempts
 - Consider firewall rules to restrict access to SMTP ports
+- Secure the web UI with proper authentication and network isolation
 
 ## Troubleshooting
 
@@ -150,6 +163,35 @@ docker exec opensmtpd supervisorctl status
 docker exec opensmtpd smtpd -n
 ```
 
+### View web UI
+```bash
+# If running locally: http://localhost:8080
+# If running on server: http://your-server-ip:8080
+```
+
+## Project Structure
+
+```
+.
+├── smtpd-ui/              # Go-based web UI
+│   └── go.mod             # Go module definition
+├── docker-compose.yml     # Docker Compose configuration
+├── Dockerfile             # Container image definition
+├── smtpd.conf            # OpenSMTPD configuration
+├── rsyslog.conf          # Logging configuration
+├── supervisord.conf      # Process supervisor configuration
+├── allowed_hosts         # List of allowed relay hosts
+└── README.md             # This file
+```
+
 ## License
 
-See LICENSE file for details.
+This project is licensed under the GNU General Public License v2.0 - see the LICENSE file for details.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Support
+
+For issues, questions, or suggestions, please open an issue on GitHub.
