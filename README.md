@@ -4,7 +4,7 @@ A Docker-based OpenSMTPD setup that acts as a secure email relay to Microsoft 36
 
 ## Overview
 
-**OpenSMTPD Docker Relay** is a containerized SMTP relay server using OpenSMTPD that forwards emails to Microsoft 365's SMTP servers. It includes access control to restrict relaying to only specified IP addresses or networks, providing a secure gateway for email transmission.
+**OpenSMTPD Docker Relay** is a containerized SMTP relay server using OpenSMTPD that forwards emails to Microsoft 365's SMTP servers. It includes access control to restrict relaying to only specified hosts/networks.
 
 ## Features
 
@@ -14,6 +14,14 @@ A Docker-based OpenSMTPD setup that acts as a secure email relay to Microsoft 36
 - 📝 **Comprehensive Logging** - Integrated rsyslog and supervisord logging
 - 🔧 **Configurable** - Easy-to-modify configuration files
 - 🌐 **Multi-Port Support** - Standard SMTP (25), SMTPS (465), and Submission (587)
+
+## Language Composition
+
+This repository is composed of the following languages:
+
+- **Shell** - 66.3%
+- **PowerShell** - 30.5%
+- **Dockerfile** - 3.2%
 
 ## Prerequisites
 
@@ -145,6 +153,3 @@ docker exec opensmtpd smtpd -n
 ## License
 
 See LICENSE file for details.
-To: recipient@example.com
-
----
