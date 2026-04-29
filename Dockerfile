@@ -25,7 +25,7 @@ RUN chmod +x /entrypoint.sh
 RUN chmod 644 /etc/smtpd.conf
 
 # Expose SMTP ports
-EXPOSE 25 587 465 8080 8085
+EXPOSE 25 587 465 8080
 
 # Start the entrypoint
 ENTRYPOINT ["/entrypoint.sh"]

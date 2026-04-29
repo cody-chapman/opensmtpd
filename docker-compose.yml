@@ -16,4 +16,4 @@ services:
       - ./supervisord.conf:/etc/supervisor/supervisord.conf:ro
       - ./allowed_hosts:/etc/mail_allowed_hosts:ro
       - ./logs:/var/log/opensmtpd
-
+      - ./user.json:/app/user.json
