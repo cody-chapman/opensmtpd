@@ -8,7 +8,6 @@ services:
       - 465:465
       - 587:587
       - 8080:8080
-      - 8888:8888
     environment:
       - TZ=America/Chicago
     volumes:
@@ -16,4 +15,4 @@ services:
       - ./supervisord.conf:/etc/supervisor/supervisord.conf:ro
       - ./allowed_hosts:/etc/mail_allowed_hosts:ro
       - ./logs:/var/log/opensmtpd
-      - ./user.json:/app/user.json
+      - ./user.json:/app/user.json:ro
