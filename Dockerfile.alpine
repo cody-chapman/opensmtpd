@@ -1,0 +1,51 @@
+# --- Stage 1: Build Stage ---
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies if needed (e.g., git, gcc for CGO)
+RUN apk add --no-cache git
+
+WORKDIR /app
+
+# Copy the UI source code
+COPY smtpd-ui/ ./smtpd-ui/
+
+# Build the binary
+WORKDIR /app/smtpd-ui
+# CGO_ENABLED=0 ensures the binary is statically linked for Alpine
+RUN CGO_ENABLED=0 go build -o /app/smtpd-web .
+
+# --- Stage 2: Final Runtime Stage ---
+FROM alpine:latest
+
+# Install runtime dependencies
+# Alpine uses 'apk' instead of 'apt'. 
+# Note: vim and supervisor are added per your original list.
+RUN apk add --no-cache \
+    curl \
+    ca-certificates \
+    vim \
+    supervisor \
+    opensmtpd \
+    bash
+
+# Create necessary OpenSMTPD directories
+RUN mkdir -p /var/spool/opensmtpd /var/log/opensmtpd
+
+WORKDIR /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/smtpd-web ./smtpd-web
+
+# Copy your configurations and entrypoint
+COPY entrypoint.sh /entrypoint.sh
+# Ensure you copy your smtpd.conf if it's not already in the image
+# COPY smtpd.conf /etc/smtpd.conf 
+
+RUN chmod +x /entrypoint.sh
+# Note: Ensure /etc/smtpd.conf exists before running chmod
+# RUN chmod 644 /etc/smtpd.conf
+
+# Expose SMTP and Web ports
+EXPOSE 25 587 465 8080
+
+ENTRYPOINT ["/entrypoint.sh"]
