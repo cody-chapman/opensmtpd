@@ -18,14 +18,39 @@ import (
 )
 
 // ── Config ─────────────────────────────────────────────────────────────────────
-// Change these or load from env/flags before deploying.
 const (
-	adminUser  = "admin"
-	adminPass  = "smtpd"
-	logPath    = "/var/log/opensmtpd/opensmtpd.log"
-	listenAddr = ":8080"
-	sessionTTL = 8 * time.Hour
+	userFilePath = "/app/user.json"
+	logPath      = "/var/log/opensmtpd/opensmtpd.log"
+	listenAddr   = ":8080"
+	sessionTTL   = 8 * time.Hour
 )
+
+// UserConfig holds credentials loaded from /app/user.json.
+// Example file:
+//
+//	{ "username": "admin", "password": "s3cr3t" }
+type UserConfig struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+var userCfg UserConfig
+
+func loadUserConfig(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	var cfg UserConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return fmt.Errorf("cannot parse %s: %w", path, err)
+	}
+	if cfg.Username == "" || cfg.Password == "" {
+		return fmt.Errorf("%s must contain non-empty \"username\" and \"password\" fields", path)
+	}
+	userCfg = cfg
+	return nil
+}
 
 // ── Session store ──────────────────────────────────────────────────────────────
 type session struct{ created time.Time }
@@ -96,8 +121,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		user := r.FormValue("username")
 		pass := r.FormValue("password")
-		uOK := subtle.ConstantTimeCompare([]byte(user), []byte(adminUser)) == 1
-		pOK := subtle.ConstantTimeCompare([]byte(pass), []byte(adminPass)) == 1
+		uOK := subtle.ConstantTimeCompare([]byte(user), []byte(userCfg.Username)) == 1
+		pOK := subtle.ConstantTimeCompare([]byte(pass), []byte(userCfg.Password)) == 1
 		if uOK && pOK {
 			tok := newSession()
 			http.SetCookie(w, &http.Cookie{
@@ -339,6 +364,14 @@ func apiStatus(w http.ResponseWriter, r *http.Request) {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 func main() {
+	if err := loadUserConfig(userFilePath); err != nil {
+		fmt.Fprintf(os.Stderr, "fatal: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("smtpd-web listening on http://localhost%s\n", listenAddr)
+	fmt.Printf("log file  : %s\n", logPath)
+	fmt.Printf("username  : %s\n", userCfg.Username)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/login", handleLogin)
 	mux.HandleFunc("/logout", handleLogout)
@@ -347,9 +380,6 @@ func main() {
 	mux.HandleFunc("/api/status", requireAuth(apiStatus))
 	mux.HandleFunc("/api/logs", requireAuth(handleLogStream))
 
-	fmt.Printf("smtpd-web listening on http://localhost%s\n", listenAddr)
-	fmt.Printf("log file  : %s\n", logPath)
-	fmt.Printf("username  : %s\n", adminUser)
 	if err := http.ListenAndServe(listenAddr, mux); err != nil {
 		fmt.Printf("fatal: %v\n", err)
 	}
