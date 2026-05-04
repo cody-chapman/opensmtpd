@@ -1,0 +1,38 @@
+FROM rockylinux:9-ubi-micro AS builder
+
+# Install build dependencies (Go)
+RUN dnf install -y golang && dnf clean all
+
+WORKDIR /app
+COPY smtpd-ui/ ./smtpd-ui/
+WORKDIR /app/smtpd-ui 
+RUN go build -o smtpd-ui .  
+
+# Final Stage
+FROM rockylinux:9-ubi
+
+# Install EPEL (required for supervisor and opensmtpd)
+RUN dnf install -y epel-release && \
+    dnf install -y \
+    curl ca-certificates vim supervisor opensmtpd \
+    && dnf clean all
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /app/smtpd-ui/smtpd-ui ./smtpd-ui/
+
+# Create necessary directories
+RUN mkdir -p /var/spool/opensmtpd /var/log/opensmtpd /etc/supervisord.d/
+
+# Copy config and entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Ensure proper permissions for OpenSMTPD
+RUN chmod 644 /etc/smtpd.conf
+
+# Expose SMTP ports and UI port
+EXPOSE 25 587 465 8080
+
+ENTRYPOINT ["/entrypoint.sh"]
